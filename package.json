@@ -37,6 +37,10 @@
     "url": "https://github.com/sandroboehme/deribit-api-ts-manual/issues"
   },
   "homepage": "https://github.com/sandroboehme/deribit-api-ts-manual#readme",
-  "description": ""
+  "description": "",
+  "files": [
+    "dist/**/*"
+  ]
+
 
 }
