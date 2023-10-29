@@ -1,0 +1,307 @@
+import superagent from "superagent";
+import { Request } from 'superagent';
+import querystring from "querystring";
+
+// You might need to adjust the following imports based on your project setup and TypeScript configuration.
+
+/**
+ * @module ApiClient
+ * @version 2.0.0
+ */
+
+interface Authentication {
+    type: 'bearer';
+    // You can expand this interface based on your authentication methods' requirements.
+}
+
+interface PathParams {
+    [key: string]: any; // Adjust the 'any' type based on your use case.
+}
+// Define any specific types you're using
+type Authentication = {
+    type: string;
+    // Add other necessary property types based on your authentication methods
+    username?: string;
+    password?: string;
+    accessToken?: string;
+    apiKey?: string;
+    apiKeyPrefix?: string;
+    name?: string;
+    'in'?: string;
+};
+
+type Headers = {
+    [key: string]: string;
+};
+
+type SuperAgentRequest = superagent.SuperAgentRequest;  // Adjust as necessary based on your actual usage
+
+type CallApiCallback = (error: string | null, data: any, response: string) => void;
+
+// Define structure for host settings
+interface HostSetting {
+    url: string;
+    description: string;
+    variables?: Record<string, {
+        enum_values?: string[];
+        default_value: string;
+    }>;
+}
+
+// Assuming you have a known set of collection formats, you can define them as follows:
+static CollectionFormatEnum = {
+    csv: ',' as const,  // as const ensures TypeScript treats this as a value, not a type
+    ssv: ' ' as const,
+    tsv: '\t' as const,
+    pipes: '|' as const,
+    multi: 'multi' as const  // if the value 'multi' has a special use
+} as const;
+
+/**
+ * Manages low level client-server communications, parameter marshalling, etc. There should not be any need for an
+ * application to use this class directly - the *Api and model classes provide the public API for the service. The
+ * contents of this file should be regarded as internal but are documented for completeness.
+ * @alias module:ApiClient
+ * @class
+ */
+class ApiClient {
+    basePath: string;
+    authentications: { [key: string]: Authentication };
+    defaultHeaders: { [key: string]: string };
+    timeout: number;
+    cache: boolean;
+    enableCookies: boolean;
+    agent: superagent.SuperAgentStatic;
+    requestAgent: Request | null;
+    plugins: any | null; // Define the 'plugins' type based on your use case.
+
+
+    static instance: ApiClient;
+    static CollectionFormatEnum: { [format: string]: string };
+
+    private defaultHeaders: Record<string, string>;
+    private cache: boolean;
+    private timeout: number;
+    private plugins: Array<(req: superagent.SuperAgentRequest) => void> | null;
+    private requestAgent: superagent.SuperAgentStatic | undefined;
+    private enableCookies: boolean;
+
+    constructor() {
+        this.basePath = 'https://www.deribit.com/api/v2'.replace(/\/+$/, '');
+        this.authentications = {
+            'bearerAuth': {type: 'bearer'}
+        };
+        this.defaultHeaders = {};
+        this.timeout = 60000;
+        this.cache = true;
+        this.enableCookies = false;
+
+        if (typeof window === 'undefined') {
+            this.agent = new superagent.agent();
+        }
+
+        this.requestAgent = null;
+        this.plugins = null; // If 'plugins' are of a specific type, initialize it accordingly.
+    }
+
+    paramToString(param: any): string {
+        if (param == undefined || param == null) {
+            return '';
+        }
+        if (param instanceof Date) {
+            return param.toJSON();
+        }
+
+        return param.toString();
+    }
+
+    buildUrl(path: string, pathParams: PathParams, apiBasePath: string | null | undefined): string {
+        if (!path.match(/^\//)) {
+            path = '/' + path;
+        }
+
+        let url = this.basePath + path;
+
+        if (apiBasePath !== null && apiBasePath !== undefined) {
+            url = apiBasePath + path;
+        }
+
+        url = url.replace(/\{([\w-]+)\}/g, (fullMatch, key) => {
+            let value: string;
+            if (pathParams.hasOwnProperty(key)) {
+                value = this.paramToString(pathParams[key]);
+            } else {
+                value = fullMatch;
+            }
+
+            return encodeURIComponent(value);
+        });
+
+        return url;
+    }
+
+    isJsonMime(contentType: string | null): boolean {
+        return Boolean(contentType != null && contentType.match(/^application\/json(;.*)?$/i));
+    }
+
+    jsonPreferredMime(contentTypes: string[]): string {
+        for (let i = 0; i < contentTypes.length; i++) {
+            if (this.isJsonMime(contentTypes[i])) {
+                return contentTypes[i];
+            }
+        }
+
+        return contentTypes[0];
+    }
+
+    isFileParam(param: any): boolean {
+        // Add types for better type checking if necessary, especially for non-standard environments.
+
+        if (typeof require === 'function') {
+            let fs;
+            try {
+                fs = require('fs');
+            } catch (err) {}
+            if (fs && fs.ReadStream && param instanceof fs.ReadStream) {
+                return true;
+            }
+        }
+
+        if (typeof Buffer === 'function' && param instanceof Buffer) {
+            return true;
+        }
+
+        if (typeof Blob === 'function' && param instanceof Blob) {
+            return true;
+        }
+
+        if (typeof File === 'function' && param instanceof File) {
+            return true;
+        }
+
+        return false;
+    }
+
+    // The returnType might be better specified with a generic, but for now, let's represent it as any.
+    deserialize(response: superagent.Response, returnType: any): any {
+        if (response == null || returnType == null || response.status === 204) {
+            return null;
+        }
+
+        // Rely on SuperAgent for parsing response body.
+        let data = response.body;
+        if (data == null || (typeof data === 'object' && typeof data.length === 'undefined' && !Object.keys(data).length)) {
+            data = response.text;
+        }
+
+        return ApiClient.convertToType(data, returnType);
+    }
+
+
+    // Add your method for convertToType. This might be a complex method depending on your types,
+    // but here's a simple stub to illustrate:
+    static convertToType(data: any, type: any): any {
+        // This would be your implementation of type conversion
+        throw new Error("Not implemented");
+    }
+// }
+
+callApi(
+    path: string,
+    httpMethod: string,
+    pathParams: Record<string, string>,
+    queryParams: Record<string, any>,
+    headerParams: Record<string, any>,
+    formParams: Record<string, any>,
+    bodyParam: any,
+    authNames: string[],
+    contentTypes: string[],
+    accepts: string[],
+    returnType: string | any[] | Object | ((...args: any[]) => any),
+    apiBasePath: string,
+    callback: CallApiCallback
+): superagent.SuperAgentRequest {
+    // Implement your method here
+    // This method should remain mostly the same, just ensure proper types are being used
+
+    throw new Error("Method not implemented.");
+}
+
+static parseDate(str: string): Date {
+    return new Date(str);
+}
+
+static convertToType(data: any, type: string | any[]): any {
+    // Same logic as before, but with TypeScript types
+    // You might need to adjust some logic based on your specific types and structures
+
+    throw new Error("Method not implemented.");
+}
+
+hostSettings(): HostSetting[] {
+    return [
+        {
+            'url': "https://www.deribit.com/api/v2",
+            'description': "main server",
+        },
+        {
+            'url': "https://test.deribit.com/api/v2",
+            'description': "No description provided",
+        }
+    ];
+}
+
+getBasePathFromSettings(index: number, variables: Record<string, string> = {}): string {
+    const servers = this.hostSettings();
+
+    if (index < 0 || index >= servers.length) {
+        throw new Error(`Invalid index ${index} when selecting the host settings. Must be less than ${servers.length}`);
+    }
+
+    const server = servers[index];
+    let url = server['url'];
+
+    for (const variable_name in server['variables']) {
+        if (variables.hasOwnProperty(variable_name)) {
+            const variable = server['variables'][variable_name];
+            if (!variable['enum_values'] || variable['enum_values'].includes(variables[variable_name])) {
+                url = url.replace(`{${variable_name}}`, variables[variable_name]);
+            } else {
+                throw new Error(`The variable \`${variable_name}\` in the host URL has invalid value ${variables[variable_name]}. Must be ${server['variables'][variable_name]['enum_values']}.`);
+            }
+        } else {
+            url = url.replace(`{${variable_name}}`, server['variables'][variable_name]['default_value']);
+        }
+    }
+
+    return url;
+}
+
+static constructFromObject(data: any, obj: any, itemType: any): void {
+    if (Array.isArray(data)) {
+    for (let i = 0; i < data.length; i++) {
+        if (data.hasOwnProperty(i))
+            obj[i] = ApiClient.convertToType(data[i], itemType);
+    }
+} else {
+    for (const k in data) {
+        if (data.hasOwnProperty(k))
+            obj[k] = ApiClient.convertToType(data[k], itemType);
+    }
+}
+}
+}
+
+// Define collection format enum
+ApiClient.CollectionFormatEnum = {
+    CSV: ',',
+    SSV: ' ',
+    TSV: '\t',
+    PIPES: '|',
+    MULTI: 'multi'
+};
+
+// Create a default instance of ApiClient
+ApiClient.instance = new ApiClient();
+
+export default ApiClient;
