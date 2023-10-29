@@ -1,7 +1,7 @@
 {
   "name": "deribit-api-ts-manual",
   "version": "1.0.0",
-  "main": "api.js",
+  "main": "./dist/api.js",
   "scripts": {
     "build": "tsc",
     "test": "jest"
