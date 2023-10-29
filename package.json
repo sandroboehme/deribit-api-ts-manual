@@ -1,7 +1,8 @@
 {
   "name": "deribit-api-ts-manual",
   "version": "1.0.0",
-  "main": "./api.ts",
+  "main": "./dist/api.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc",
     "test": "jest"
@@ -36,5 +37,9 @@
     "url": "https://github.com/sandroboehme/deribit-api-ts-manual/issues"
   },
   "homepage": "https://github.com/sandroboehme/deribit-api-ts-manual#readme",
-  "description": ""
+  "description": "",
+  "files": [
+    "dist"
+  ]
+
 }
